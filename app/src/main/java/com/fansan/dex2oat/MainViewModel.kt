@@ -35,6 +35,7 @@ class MainViewModel : ViewModel() {
                         packageName = it.packageName,
                         versionCode = it.longVersionCode,
                         lastUpdateTime = it.lastUpdateTime,
+                        isCompiled = false,
                         modifyTime = System.currentTimeMillis()
                     )
                 }
@@ -59,6 +60,7 @@ class MainViewModel : ViewModel() {
                             packageName = it.packageName,
                             versionCode = it.longVersionCode,
                             lastUpdateTime = it.lastUpdateTime,
+                            isCompiled = false,
                             modifyTime = System.currentTimeMillis()
                         )
                     })

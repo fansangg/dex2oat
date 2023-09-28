@@ -23,5 +23,7 @@ class PackageInfoEntity(
 
 	@ColumnInfo val lastUpdateTime: Long,
 
+	@ColumnInfo val isCompiled:Boolean,
+
 	@ColumnInfo val modifyTime:Long
 )
