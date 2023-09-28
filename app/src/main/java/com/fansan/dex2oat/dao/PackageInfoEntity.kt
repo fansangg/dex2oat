@@ -14,7 +14,7 @@ import androidx.room.PrimaryKey
 	tableName = "package_entity",
 	indices = [Index(name = "indexPackageName", value = ["packageName"], unique = true)]
 )
-class PackageInfoEntity(
+data class PackageInfoEntity(
 	@PrimaryKey(autoGenerate = true) val id: Long = 0L,
 
 	@ColumnInfo val packageName: String,

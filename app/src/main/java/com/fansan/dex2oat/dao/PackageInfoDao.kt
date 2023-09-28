@@ -19,7 +19,7 @@ interface PackageInfoDao {
     fun getAll():List<PackageInfoEntity>
 
     @Query("select * from package_entity where packageName like :packageName")
-    fun getEntity(packageName:String):List<PackageInfoEntity>
+    fun getEntity(packageName:String):PackageInfoEntity
 
     @Insert
     fun insertEntity(entity: PackageInfoEntity)
