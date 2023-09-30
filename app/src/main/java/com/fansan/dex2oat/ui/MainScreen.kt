@@ -140,21 +140,19 @@ private fun OperationView() {
 		horizontalArrangement = Arrangement.SpaceBetween
 	) {
 		Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-			OperationItem(
-				label = "已编译",
-				isChecked = vm.stateHolder.checkCompiled,
-				checkChanged = {
-					vm.stateHolder.checkCompiled = it
-					vm.updateList()
-				})
+			OperationItem(label = "已编译",
+			              isChecked = vm.stateHolder.checkCompiled,
+			              checkChanged = {
+				              vm.stateHolder.checkCompiled = it
+				              vm.updateList()
+			              })
 
-			OperationItem(
-				label = "系统应用",
-				isChecked = vm.stateHolder.checkSystemApp,
-				checkChanged = {
-					vm.stateHolder.checkSystemApp = it
-					vm.updateList()
-				})
+			OperationItem(label = "系统应用",
+			              isChecked = vm.stateHolder.checkSystemApp,
+			              checkChanged = {
+				              vm.stateHolder.checkSystemApp = it
+				              vm.updateList()
+			              })
 		}
 
 		OperationItem(label = "全选",
@@ -265,7 +263,10 @@ fun AppItem(info: PackageEntity, click: () -> Unit) {
 
 		SpacerH(height = 8.dp)
 		Column {
-			Text(text = "更新时间：${TimeUtils.millis2String(info.info.lastUpdateTime)}", style = Typography.labelMedium.copy(color = MaterialTheme.colorScheme.onPrimary))
+			Text(
+				text = "更新时间：${TimeUtils.millis2String(info.info.lastUpdateTime)}",
+				style = Typography.labelMedium.copy(color = MaterialTheme.colorScheme.onPrimary)
+			)
 			SpacerH(height = 6.dp)
 			val dbEntity = Dex2oatDatabase.getDb().packageInfoDao().getEntity(info.info.packageName)
 			val isCompiled = dbEntity.isCompiled
