@@ -1,22 +1,24 @@
 package com.fansan.dex2oat
 
+import android.app.Activity
 import android.content.Context
-import android.util.Log
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.snapshots.SnapshotStateList
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.blankj.utilcode.util.AppUtils
 import com.fansan.dex2oat.dao.PackageInfoEntity
 import com.fansan.dex2oat.entity.PackageEntity
-import com.fansan.dex2oat.entity.SourceType
-import com.fansan.dex2oat.entity.TaskEntity
+import com.fansan.dex2oat.service.Dex2oatService
 import com.fansan.dex2oat.ui.state.MainScreenStateHolder
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlin.time.Duration.Companion.seconds
 
 /**
  *@author  fansan
@@ -26,24 +28,18 @@ import kotlin.time.Duration.Companion.seconds
 class MainViewModel : ViewModel() {
 
     private val appList = mutableListOf<PackageEntity>()
-    var userPackageList = mutableStateListOf<PackageEntity>()
-    var userPackageListCompiled = mutableStateListOf<PackageEntity>()
-    var systemPackageList = mutableStateListOf<PackageEntity>()
-    var systemPackageListCompiled = mutableStateListOf<PackageEntity>()
+	var currentShowList by mutableStateOf(emptySet<PackageEntity>())
     val stateHolder = MainScreenStateHolder()
 
-    fun getAllPackageInfo(context: Context) {
+    fun getAllPackageInfo() {
         stateHolder.showLoadingPackage()
-        val packageManager = context.packageManager
+        val packageManager = App.app.packageManager
         val list = packageManager.getInstalledPackages(0)
         appList.addAll(list.map {
             PackageEntity(it, false)
         })
         viewModelScope.launch {
             syncDb()
-            delay(1.seconds)
-            classifyPackage()
-            stateHolder.hideLoadingPackage()
         }
     }
 
@@ -57,14 +53,25 @@ class MainViewModel : ViewModel() {
                         versionCode = it.info.longVersionCode,
                         lastUpdateTime = it.info.lastUpdateTime,
                         isCompiled = false,
-                        modifyTime = System.currentTimeMillis()
+                        modifyTime = 0L
                     )
                 }
                 Dex2oatDatabase.getDb().packageInfoDao().insertAll(list)
             } else {
+				//更新是否编译
+				appList.forEach {
+					allData.find { entity ->
+						entity.packageName == it.info.packageName
+					}?.let { entity ->
+						if (entity.isCompiled){
+							if (entity.lastUpdateTime != it.info.lastUpdateTime){
+								Dex2oatDatabase.getDb().packageInfoDao().updateEntity(entity.copy(isCompiled = false, modifyTime = 0L))
+							}
+						}
+					}
+				}
 
-
-
+	            //添加新的package和移除不存在的package
                 val nowAllPackage = appList.map {
                     it.info.packageName
                 }
@@ -85,7 +92,7 @@ class MainViewModel : ViewModel() {
                             versionCode = it.info.longVersionCode,
                             lastUpdateTime = it.info.lastUpdateTime,
                             isCompiled = false,
-                            modifyTime = System.currentTimeMillis()
+                            modifyTime = 0L
                         )
                     })
                 }
@@ -95,159 +102,40 @@ class MainViewModel : ViewModel() {
                         needDeletePackage.contains(it.packageName)
                     })
                 }
-
             }
+
+	        stateHolder.hideLoadingPackage()
+	        updateList()
         }
     }
 
-    private fun classifyPackage() {
-        val systemApp = appList.filter {
-            AppUtils.isAppSystem(it.info.packageName)
-        }
-        val userApp = appList.subtract(systemApp.toSet())
+	fun updateList(){
+		currentShowList = appList.filter {
+			if (stateHolder.checkCompiled && stateHolder.checkSystemApp)
+				Dex2oatDatabase.getDb().packageInfoDao().getEntity(it.info.packageName).isCompiled
+			else if (stateHolder.checkCompiled){
+				Dex2oatDatabase.getDb().packageInfoDao().getEntity(it.info.packageName).isCompiled && AppUtils.isAppSystem(it.info.packageName).not()
+			}else if (stateHolder.checkSystemApp){
+				true
+			}else{
+				AppUtils.isAppSystem(it.info.packageName).not()
+			}
+		}.sortedByDescending {
+			it.info.lastUpdateTime
+		}.toSet()
+	}
 
-        systemApp.forEach {
-            val packageEntity =
-                Dex2oatDatabase.getDb().packageInfoDao().getEntity(it.info.packageName)
-            if (packageEntity.isCompiled) {
-                if (it.info.lastUpdateTime != packageEntity.lastUpdateTime){
-                    systemPackageList.add(it)
-                    Dex2oatDatabase.getDb().packageInfoDao().updateEntity(packageEntity.copy(isCompiled = false, modifyTime = System.currentTimeMillis()))
-                }
-                systemPackageListCompiled.add(it)
-            } else {
-                systemPackageList.add(it)
-            }
-
-        }
-
-        userApp.forEach {
-            val packageEntity =
-                Dex2oatDatabase.getDb().packageInfoDao().getEntity(it.info.packageName)
-            if (packageEntity.isCompiled) {
-                if (it.info.lastUpdateTime != packageEntity.lastUpdateTime){
-                    userPackageList.add(it)
-                    Dex2oatDatabase.getDb().packageInfoDao().updateEntity(packageEntity.copy(isCompiled = false, modifyTime = System.currentTimeMillis()))
-                }
-                userPackageListCompiled.add(it)
-            } else {
-                userPackageList.add(it)
-            }
-        }
-    }
-
-    fun selectItem(list: SnapshotStateList<PackageEntity>, index: Int, select: Boolean) {
-        list[index] = list[index].copy(isSelected = select)
-        updateSelectMode()
-    }
-
-    fun scopeSelectAll(type: SourceType){
-        when(type){
-            SourceType.SP -> {
-                val select = systemPackageList.count { it.isSelected } != systemPackageList.size
-                val copy = systemPackageList.map {
-                    it.copy(isSelected = select)
-                }
-                systemPackageList.clear()
-                systemPackageList.addAll(copy)
-            }
-            SourceType.SPCompiled -> {
-                val select = systemPackageListCompiled.count { it.isSelected } != systemPackageListCompiled.size
-                val copy = systemPackageListCompiled.map {
-                    it.copy(isSelected = select)
-                }
-                systemPackageListCompiled.clear()
-                systemPackageListCompiled.addAll(copy)
-            }
-            SourceType.UP -> {
-                val select = userPackageList.count { it.isSelected } != userPackageList.size
-                val copy = userPackageList.map {
-                    it.copy(isSelected = select)
-                }
-                userPackageList.clear()
-                userPackageList.addAll(copy)
-            }
-            SourceType.UPCompiled -> {
-                val select = userPackageListCompiled.count { it.isSelected } != userPackageListCompiled.size
-                val copy = userPackageListCompiled.map {
-                    it.copy(isSelected = select)
-                }
-                userPackageListCompiled.clear()
-                userPackageListCompiled.addAll(copy)
-            }
-        }
-
-        updateSelectMode()
-    }
-
-    fun cancelAll(){
-        val newSystemPackageList = systemPackageList.map {
-            it.copy(isSelected = false)
-        }
-        systemPackageList.clear()
-        systemPackageList.addAll(newSystemPackageList)
-
-        val newSystemPackageListCompiled  = systemPackageListCompiled.map {
-            it.copy(isSelected = false)
-        }
-        systemPackageListCompiled.clear()
-        systemPackageListCompiled.addAll(newSystemPackageListCompiled)
+	fun toggleSelectAll(){
+		val allSelected = currentShowList.all { it.isSelected }
+		currentShowList = currentShowList.map {
+			it.copy(isSelected = !allSelected)
+		}.toSet()
+	}
 
 
-        val newUserPackageList = userPackageList.map {
-            it.copy(isSelected = false)
-        }
 
-        userPackageList.clear()
-        userPackageList.addAll(newUserPackageList)
-
-        val newUserPackageListCompiled = userPackageListCompiled.map {
-            it.copy(isSelected = false)
-        }
-        userPackageListCompiled.clear()
-        userPackageListCompiled.addAll(newUserPackageListCompiled)
-
-        updateSelectMode()
-    }
-
-    private fun getAllSelectedPackage():List<TaskEntity>{
-        val pckNameList = mutableListOf<TaskEntity>()
-        pckNameList.addAll(userPackageList.filter {
-            it.isSelected
-        }.map {
-            TaskEntity(source = SourceType.UP,it.info.packageName)
-        })
-
-        pckNameList.addAll(userPackageListCompiled.filter {
-            it.isSelected
-        }.map {
-            TaskEntity(source = SourceType.UPCompiled,it.info.packageName)
-        })
-
-        pckNameList.addAll(systemPackageList.filter {
-            it.isSelected
-        }.map {
-            TaskEntity(source = SourceType.SP,it.info.packageName)
-        })
-
-        pckNameList.addAll(systemPackageListCompiled.filter {
-            it.isSelected
-        }.map {
-            TaskEntity(source = SourceType.SPCompiled,it.info.packageName)
-        })
-
-        return pckNameList
-    }
-
-    private fun updateSelectMode() {
-        stateHolder.selecteNum =
-            userPackageList.count() { it.isSelected } + userPackageListCompiled.count { it.isSelected } + systemPackageList.count {
-                it.isSelected
-            } + systemPackageListCompiled.count { it.isSelected }
-    }
-
-    suspend fun dex2oat(service:IUserService){
-        withContext(Dispatchers.IO){
+	fun dex2oat(){
+        /*withContext(Dispatchers.IO){
             stateHolder.running = true
             val list = getAllSelectedPackage()
             stateHolder.processCount = list.size
@@ -265,72 +153,21 @@ class MainViewModel : ViewModel() {
                 }
             }
             stateHolder.running = false
-        }
+        }*/
+
+		val serviceIntent = Intent(App.app,Dex2oatService::class.java)
+		App.app.startService(serviceIntent)
     }
 
-    private fun handlerSuccess(taskEntity: TaskEntity){
-        when(taskEntity.source){
-            SourceType.SP -> {
-                val index = systemPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    val entity = systemPackageList[index]
-                    systemPackageList.removeAt(index)
-                    systemPackageListCompiled.add(entity.copy(isSelected = false))
-                }
-            }
-            SourceType.SPCompiled -> {
-                val index = systemPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    systemPackageListCompiled[index] = systemPackageListCompiled[index].copy(isSelected = false)
-                }
-            }
-            SourceType.UP -> {
-                val index = userPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    val entity = userPackageList[index]
-                    userPackageList.removeAt(index)
-                    userPackageListCompiled.add(entity.copy(isSelected = false))
-                }
-            }
-            SourceType.UPCompiled -> {
-                val index = userPackageListCompiled.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    userPackageListCompiled[index] = userPackageListCompiled[index].copy(isSelected = false)
-                }
-            }
-        }
-
-        updateSelectMode()
-    }
-
-    private fun handlerFailure(taskEntity: TaskEntity){
-        when(taskEntity.source){
-            SourceType.SP -> {
-                val index = systemPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    systemPackageList[index] = systemPackageList[index].copy(isSelected = false)
-                }
-            }
-            SourceType.SPCompiled -> {
-                val index = systemPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    systemPackageListCompiled[index] = systemPackageListCompiled[index].copy(isSelected = false)
-                }
-            }
-            SourceType.UP -> {
-                val index = userPackageList.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    userPackageList[index] = userPackageList[index].copy(isSelected = false)
-                }
-            }
-            SourceType.UPCompiled -> {
-                val index = userPackageListCompiled.indexOfFirst { taskEntity.packageName == it.info.packageName }
-                if (index != -1) {
-                    userPackageListCompiled[index] = userPackageListCompiled[index].copy(isSelected = false)
-                }
-            }
-        }
-
-        updateSelectMode()
-    }
+	fun checkPower(activity: Activity) {
+		val powerManager = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
+		val ignore = powerManager.isIgnoringBatteryOptimizations(App.app.packageName)
+		if (!ignore) {
+			val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
+			intent.data = Uri.parse("package:${activity.packageName}")
+			activity.startActivity(intent)
+		}else{
+			dex2oat()
+		}
+	}
 }

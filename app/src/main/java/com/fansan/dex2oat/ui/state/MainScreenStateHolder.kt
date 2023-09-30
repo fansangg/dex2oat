@@ -14,6 +14,9 @@ class MainScreenStateHolder {
     var processCount = 0
     var currentProcessName by mutableStateOf("")
     var running by mutableStateOf(false)
+	var checkCompiled by mutableStateOf(false)
+	var checkSystemApp by mutableStateOf(false)
+
     val selectMode: State<Boolean>
         get() = derivedStateOf { selecteNum != 0 }
 

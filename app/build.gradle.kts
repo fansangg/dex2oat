@@ -89,4 +89,5 @@ dependencies {
 
 	implementation("dev.rikka.shizuku:api:$shizukuVersion")
 	implementation("dev.rikka.shizuku:provider:$shizukuVersion")
+	implementation("com.github.getActivity:XXPermissions:18.3")
 }
