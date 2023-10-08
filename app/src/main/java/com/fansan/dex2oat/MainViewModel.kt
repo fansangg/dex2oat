@@ -1,5 +1,6 @@
 package com.fansan.dex2oat
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -46,7 +47,7 @@ class MainViewModel : ViewModel() {
     private suspend fun syncDb() {
         withContext(Dispatchers.IO) {
             val allData = Dex2oatDatabase.getDb().packageInfoDao().getAll()
-            if (allData.isEmpty()) {
+	        if (allData.isEmpty()) {
                 val list = appList.map {
                     PackageInfoEntity(
                         packageName = it.info.packageName,
@@ -135,6 +136,12 @@ class MainViewModel : ViewModel() {
 
 
 	fun dex2oat(){
+		val packageNameList = currentShowList.filter {
+			it.isSelected
+		}.map {
+			it.info.packageName
+		}.toTypedArray()
+
         /*withContext(Dispatchers.IO){
             stateHolder.running = true
             val list = getAllSelectedPackage()
@@ -156,9 +163,11 @@ class MainViewModel : ViewModel() {
         }*/
 
 		val serviceIntent = Intent(App.app,Dex2oatService::class.java)
-		App.app.startService(serviceIntent)
+		serviceIntent.putExtra("names",packageNameList)
+		App.app.startForegroundService(serviceIntent)
     }
 
+	@SuppressLint("BatteryLife")
 	fun checkPower(activity: Activity) {
 		val powerManager = activity.getSystemService(Context.POWER_SERVICE) as PowerManager
 		val ignore = powerManager.isIgnoringBatteryOptimizations(App.app.packageName)

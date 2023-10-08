@@ -14,10 +14,6 @@ import java.io.File
 
 class MainActivity : ComponentActivity() {
 
-	init {
-		moveRish2Path()
-	}
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
@@ -25,6 +21,8 @@ class MainActivity : ComponentActivity() {
                 MainPage()
             }
         }
+
+	    moveRish2Path()
     }
 
 	private fun moveRish2Path(){
