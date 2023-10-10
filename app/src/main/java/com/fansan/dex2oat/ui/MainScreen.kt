@@ -44,6 +44,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.blankj.utilcode.util.AppUtils
 import com.blankj.utilcode.util.TimeUtils
 import com.fansan.dex2oat.Dex2oatDatabase
+import com.fansan.dex2oat.MainActivity
 import com.fansan.dex2oat.MainViewModel
 import com.fansan.dex2oat.SpacerH
 import com.fansan.dex2oat.SpacerW
@@ -53,7 +54,7 @@ import com.google.accompanist.drawablepainter.rememberDrawablePainter
 
 
 @Composable
-fun MainPage() {
+fun MainPage(click: () -> Unit) {
 
 	val vm = viewModel<MainViewModel>()
 	val context = LocalContext.current
@@ -81,7 +82,7 @@ fun MainPage() {
 				if (vm.currentShowList.any { it.isSelected }) {
 					FloatingActionButton(
 						onClick = {
-							vm.checkPower(context as Activity)
+							click()
 						},
 						shape = RoundedCornerShape(18.dp),
 						modifier = Modifier
